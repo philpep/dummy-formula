@@ -22,6 +22,7 @@ def build(image, salt=False):
         dockerfile = "test/{0}_salted.Dockerfile".format(image)
         with open(dockerfile, "w") as f:
             f.write(dockerfile_content)
+        tag += "_salted"
     subprocess.check_call(["docker", "build", "-t", tag, "-f", dockerfile, "."])
     return tag
 
