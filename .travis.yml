@@ -9,6 +9,6 @@ env:
     - IMAGE=centos7
     - IMAGE=jessie
 install:
-  - pip install testinfra
+  - pip install -r requirements.txt
 script:
-  - python run-tests.py test $IMAGE -v
+  - python run-tests.py test $IMAGE -- -v

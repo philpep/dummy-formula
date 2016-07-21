@@ -1,14 +1,23 @@
 #!/usr/bin/env python
-from __future__ import unicode_literals
 
 import os
-import sys
 import subprocess
+
+import click
 
 formula = "dummy"
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 
+@click.group()
+def cli():
+    pass
+
+image_choice = click.argument("image", type=click.Choice(["centos7", "jessie"]))
+
+
+@cli.command(help="Build an image")
+@image_choice
 def build(image, salt=False):
     dockerfile = "test/{0}.Dockerfile".format(image)
     tag = "{0}-formula:{1}".format(formula, image)
@@ -27,8 +36,11 @@ def build(image, salt=False):
     return tag
 
 
-def dev(image):
-    tag = build(image)
+@cli.command(help="Spawn an interactive shell in a new container")
+@image_choice
+@click.pass_context
+def dev(ctx, image):
+    tag = ctx.invoke(build, image=image)
     subprocess.call([
         "docker", "run", "-i", "-t", "--rm", "--hostname", image,
         "-v", "{0}/test/minion.conf:/etc/salt/minion.d/minion.conf".format(BASEDIR),
@@ -37,9 +49,13 @@ def dev(image):
     ])
 
 
-def test(image):
+@cli.command(help="Run tests against a provisioned container",
+             context_settings={"allow_extra_args": True})
+@click.pass_context
+@image_choice
+def test(ctx, image):
     import pytest
-    tag = build(image, salt=True)
+    tag = ctx.invoke(build, image=image, salt=True)
     docker_id = subprocess.check_output([
         "docker", "run", "-d", "--hostname", image,
         "-v", "{0}/test/minion.conf:/etc/salt/minion.d/minion.conf".format(BASEDIR),
@@ -47,14 +63,10 @@ def test(image):
         tag, "tail", "-f", "/dev/null",
     ]).strip()
     try:
-        sys.exit(pytest.main(["--hosts", "docker://" + docker_id] + sys.argv[3:]))
+        ctx.exit(pytest.main(["--hosts=docker://" + docker_id] + ctx.args))
     finally:
         subprocess.check_call(["docker", "rm", "-f", docker_id])
 
 
 if __name__ == "__main__":
-    {
-        "build": build,
-        "dev": dev,
-        "test": test,
-    }[sys.argv[1]](sys.argv[2])
+    cli()
